@@ -14,10 +14,16 @@ import (
 )
 
 const (
-	operationDone               = "DONE" // operation status DONE
-	inUseStatus                 = "IN_USE"
-	reservedStatus              = "RESERVED" // static IP addresses that are reserved but not currently in use
-	defaultTimeout              = 10 * time.Minute
+	operationDone  = "DONE" // operation status DONE
+	inUseStatus    = "IN_USE"
+	reservedStatus = "RESERVED" // static IP addresses that are reserved but not currently in use
+	defaultTimeout = 10 * time.Minute
+	// deleting the instance's current public IP cuts the connection this very wait
+	// rides on when the agent egresses through that IP, so the call can only hang
+	// until it is reset; keep the budget short — a delete that has not confirmed in
+	// time is caught by the subsequent AddAccessConfig (fingerprint conflict) and
+	// retried by the assign loop
+	deleteOperationTimeout      = 5 * time.Second
 	defaultNetworkName          = "External IP"
 	defaultNetworkNameIPv6      = "External IPv6"
 	defaultAccessConfigType     = "ONE_TO_ONE_NAT"
@@ -169,7 +175,7 @@ func (a *gcpAssigner) DeleteInstanceAddress(ctx context.Context, instance *compu
 		return errors.Wrapf(err, "failed to delete access config %s from instance %s", accessConfig.Name, instance.Name)
 	}
 	// wait for operation to complete
-	if err = a.waitForOperation(ctx, op, zone, defaultTimeout); err != nil {
+	if err = a.waitForOperation(ctx, op, zone, deleteOperationTimeout); err != nil {
 		// return error if operation failed
 		if isOperationError(err) {
 			return err
