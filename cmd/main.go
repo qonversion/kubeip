@@ -233,8 +233,15 @@ func run(c context.Context, log *logrus.Entry, cfg *config.Config) error {
 	}
 
 	if cfg.TaintKey != "" {
-		if err := waitForAddressToBeReported(ctx, log, explorer, n, assignedAddress, cfg); err != nil {
-			return errors.Wrap(err, "waiting for node to report assigned address")
+		if cfg.WaitForAddressReport {
+			if err := waitForAddressToBeReported(ctx, log, explorer, n, assignedAddress, cfg); err != nil {
+				return errors.Wrap(err, "waiting for node to report assigned address")
+			}
+		} else {
+			log.WithFields(logrus.Fields{
+				"node":    n.Name,
+				"address": assignedAddress,
+			}).Info("skipping wait for node to report assigned address")
 		}
 
 		logger := log.WithField("taint-key", cfg.TaintKey)
@@ -390,6 +397,13 @@ func main() {
 						Usage:    "specify a taint key to remove from the node once the static public IP address is assigned",
 						EnvVars:  []string{"TAINT_KEY"},
 						Category: "Configuration",
+					},
+					&cli.BoolFlag{
+						Name:     "wait-for-address-report",
+						Usage:    "wait for the node to report the assigned address in its status before removing the taint; disable to remove the taint as soon as the cloud provider confirms the address is assigned",
+						EnvVars:  []string{"WAIT_FOR_ADDRESS_REPORT"},
+						Category: "Configuration",
+						Value:    true,
 					},
 					&cli.StringFlag{
 						Name:     "log-level",
